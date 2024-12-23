@@ -1,0 +1,49 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                sshagent(['ssh-agent']) {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ec2-user@3.109.186.65 "git clone https://github.com/Sushmaa123/Java-Springboot.git /home/ec2-user/Java-Springboot"
+                    '''
+                }
+            }
+        }
+        stage('Build on Remote EC2 (Java 8 or Java 17)') {
+            steps {
+                sshagent(['ssh-agent']) {
+                    sh '''
+                    # Choose Java 8 or Java 17 based on the requirement
+                    ssh -o StrictHostKeyChecking=no ec2-user@3.109.186.65 "cd /home/ec2-user/Java-Springboot && mvn clean install -Djava.version=1.8"
+                    '''
+                }
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                sshagent(['ssh-agent']) {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ec2-user@3.109.186.65 "cd /home/ec2-user/Java-Springboot && sudo docker build -t java-springboot-image ."
+                    '''
+                }
+            }
+        }
+        stage('Build Docker Image and Run Container on Remote EC2') {
+            steps {
+                sshagent(['ssh-agent']) {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ec2-user@3.109.186.65 "
+                    cd /home/ec2-user/Java-Springboot
+                    sudo docker build -t java-springboot-image .
+                    sudo docker stop java-springboot-container || true
+                    sudo docker rm java-springboot-container || true
+                    sudo docker run -d --name java-springboot-container -p 8081:8080 java-springboot-image
+                    "
+                    '''
+                }
+            }
+        }
+    }
+}
